@@ -4,7 +4,7 @@
 #include <string>
 #include "../../core.h"
 #include "../../minigame.h"
-#include "./song.cpp"
+#include "song.h"
 
 using namespace std;
 
@@ -98,7 +98,7 @@ extern "C" void minigame_loop(float deltatime)
     rdpq_attach(display_get(), NULL);
     rdpq_clear(color_from_packed32(GAME_BACKGROUND));
     rdpq_set_mode_copy(true);
-    
+
     if ((int)freebird.tracks[0].size() > cu_idx && elapsed + 3 >= freebird.tracks[0][cu_idx].time + 3) {
         current_cu.push_back(freebird.tracks[0][cu_idx]);
         cu_idx++;

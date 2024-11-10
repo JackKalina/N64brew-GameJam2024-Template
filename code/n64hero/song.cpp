@@ -1,39 +1,15 @@
 #include <vector>
 #include <string>
 #include <queue>
+#include "song.h"
 
 using namespace std;
 
-typedef struct
-{
-    int time;
-    int duration;
-} Note;
-
-typedef struct {
-    string name;
-    std::vector<vector<Note>> tracks;
-} Song;
-
-
-class SongTracker {
-    private:
-        float elapsed;
-        std::vector<int> track_idx;
-        std::vector<int> track_jdx;
-        std::vector<vector<Note>> tracks;
-    public:
-        std::vector<deque<Note>> current_notes;
-
-        void reset();
-        void tick(float delta);
-        // get_next_notes(int track);
-        SongTracker(Song song) {
-            tracks = song.tracks;
-            track_idx.reserve(tracks.size());
-            current_notes.reserve(tracks.size());
-        }
-};
+SongTracker::SongTracker(Song song) {
+    tracks = song.tracks;
+    track_idx.reserve(tracks.size());
+    current_notes.reserve(tracks.size());
+}
 
 void SongTracker::reset() {
 
