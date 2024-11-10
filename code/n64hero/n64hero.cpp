@@ -1,21 +1,56 @@
 #include <libdragon.h>
+#include <vector>
+#include <string>
 #include "../../core.h"
 #include "../../minigame.h"
 
-const MinigameDef minigame_def = {
-    .gamename = "N64 Hero",
+using namespace std;
+
+extern const MinigameDef minigame_def = {
+    .gamename = "n64hero",
     .developername = "Team Kinnock",
     .description = "This is an example game.",
     .instructions = "Press A to win."
+};
+
+
+typedef struct
+{
+    int time;
+    int duration;
+} Note;
+
+typedef struct {
+    string name;
+    std::vector<Note> track_cu;
+    std::vector<Note> track_cr;
+    std::vector<Note> track_cd;
+    std::vector<Note> track_cl;
+} Song;
+
+const Song freebird = {
+    "Freebird",
+    {
+        {0, 0},
+        {1000, 0},
+        {2000, 0},
+        {3000, 1000}
+    },
+    {
+        {0, 0},
+        {1000, 0},
+        {2000, 0},
+        {3000, 1000}
+    }
 };
 
 /*==============================
     minigame_init
     The minigame initialization function
 ==============================*/
-void minigame_init()
+extern "C" void minigame_init()
 {
-
+    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
 }
 
 /*==============================
@@ -25,7 +60,7 @@ void minigame_init()
     important, like physics.
     @param  The fixed delta time for this tick
 ==============================*/
-void minigame_fixedloop(float deltatime)
+extern "C" void minigame_fixedloop(float deltatime)
 {
 
 }
@@ -35,7 +70,7 @@ void minigame_fixedloop(float deltatime)
     Code that is called every loop.
     @param  The delta time for this tick
 ==============================*/
-void minigame_loop(float deltatime)
+extern "C" void minigame_loop(float deltatime)
 {
 
 }
@@ -44,7 +79,7 @@ void minigame_loop(float deltatime)
     minigame_cleanup
     Clean up any memory used by your game just before it ends.
 ==============================*/
-void minigame_cleanup()
+extern "C" void minigame_cleanup()
 {
 
 }
