@@ -6,6 +6,11 @@
 
 using namespace std;
 
+#define CONSOLE_WIDTH 64
+#define CONSOLE_HEIGHT 28
+#define HORIZONTAL_PADDING 64
+#define VERTICAL_PADDING 8
+
 extern const MinigameDef minigame_def = {
     .gamename = "n64hero",
     .developername = "Team Kinnock",
@@ -13,6 +18,7 @@ extern const MinigameDef minigame_def = {
     .instructions = "Press A to win."
 };
 
+wav64_t song;
 
 typedef struct
 {
@@ -51,6 +57,11 @@ const Song freebird = {
 extern "C" void minigame_init()
 {
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
+    console_init();
+    printf("N64 hero loaded");
+
+    wav64_open(&song, "rom:/assets/n64hero/freebirdshort.wav64");
+    wav64_play(&song, 0);
 }
 
 /*==============================
@@ -72,6 +83,9 @@ extern "C" void minigame_fixedloop(float deltatime)
 ==============================*/
 extern "C" void minigame_loop(float deltatime)
 {
+    console_clear();
+    printf("N64 hero loaded");
+    printf("dt: %f", deltatime);
 
 }
 
@@ -81,5 +95,5 @@ extern "C" void minigame_loop(float deltatime)
 ==============================*/
 extern "C" void minigame_cleanup()
 {
-
+    wav64_close(&song);
 }
