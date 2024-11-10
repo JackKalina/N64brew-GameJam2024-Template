@@ -60,7 +60,7 @@ extern "C" void minigame_init()
     console_init();
     printf("N64 hero loaded");
 
-    wav64_open(&song, "rom:/assets/n64hero/freebirdshort.wav64");
+    wav64_open(&song, "rom:/n64hero/freebirdshort.wav64");
     wav64_play(&song, 0);
 }
 
