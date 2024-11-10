@@ -59,7 +59,7 @@ extern "C" void minigame_init()
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
     console_init();
     printf("N64 hero loaded");
-
+    mixer_ch_set_limits(44100, 44100, 44100, 44100);
     wav64_open(&song, "rom:/n64hero/freebirdshort.wav64");
     wav64_play(&song, 0);
 }
