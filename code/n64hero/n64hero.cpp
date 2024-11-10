@@ -58,8 +58,8 @@ extern "C" void minigame_init()
 {
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
     console_init();
-    printf("N64 hero loaded");
-    mixer_ch_set_limits(6, 0, 44100, 0);
+    printf("N64 hero loaded\n");
+    mixer_ch_set_limits(0, 0, 44100, 0);
     wav64_open(&song, "rom:/n64hero/freebirdshort.wav64");
     wav64_play(&song, 0);
 }
@@ -73,7 +73,7 @@ extern "C" void minigame_init()
 ==============================*/
 extern "C" void minigame_fixedloop(float deltatime)
 {
-
+   printf("fixedloop dt: %f\n", deltatime);
 }
 
 /*==============================
@@ -83,10 +83,7 @@ extern "C" void minigame_fixedloop(float deltatime)
 ==============================*/
 extern "C" void minigame_loop(float deltatime)
 {
-    console_clear();
-    printf("N64 hero loaded");
-    printf("dt: %f", deltatime);
-
+    printf("loop dt: %f\n", deltatime);
 }
 
 /*==============================
@@ -96,4 +93,5 @@ extern "C" void minigame_loop(float deltatime)
 extern "C" void minigame_cleanup()
 {
     wav64_close(&song);
+    console_clear();
 }
