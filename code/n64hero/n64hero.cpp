@@ -83,6 +83,7 @@ extern "C" void minigame_fixedloop(float deltatime)
 ==============================*/
 extern "C" void minigame_loop(float deltatime)
 {
+    mixer_try_play();
     printf("loop dt: %f\n", deltatime);
 }
 
