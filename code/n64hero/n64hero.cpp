@@ -35,26 +35,41 @@ const Song freebird = {
             {3, 0},
             {5, 0},
             {9, 1000}
+        },
+        {
+            {3, 0},
+            {8, 0},
+        },
+        {
+            {4, 0},
         }
     }
 };
 
+typedef struct
+{
+    PlyNum plynum;
+} player_data;
+player_data players[MAXPLAYERS];
+
+typedef struct {
+    sprite_t* sprite;
+    uint16_t button;
+} track_data;
 
 sprite_t* c_up;
 sprite_t* c_down;
 sprite_t* c_left;
 sprite_t* c_right;
 
-std::deque<Note> current_cu;
-std::deque<Note> current_cd;
-std::deque<Note> current_cl;
-std::deque<Note> current_cr;
+std::vector <track_data> tracks;
 
-int cu_idx;
-int cd_idx;
-int cl_idx;
-int cr_idx;
+SongTracker* tracker;
 
+void player_init(player_data *player)
+{
+
+}
 
 /*==============================
     minigame_init
@@ -62,17 +77,25 @@ int cr_idx;
 ==============================*/
 extern "C" void minigame_init()
 {
+    // Configure each track 8,4,2,1 correspond to bit values in joypad_buttons_t type
+    tracks = { 
+        { sprite_load("rom:/core/CUp.sprite"), 8 }, 
+        { sprite_load("rom:/core/CDown.sprite"), 4}, 
+        { sprite_load("rom:/core/CLeft.sprite"), 2}, 
+        { sprite_load("rom:/core/CRight.sprite"), 1} 
+    };
+
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
     font = rdpq_font_load_builtin(FONT_BUILTIN_DEBUG_VAR);
     rdpq_text_register_font(FONT_TEXT, font);
 
-    // Create deque for tracks encapsulate somewhere
+    tracker = new SongTracker(freebird);
 
-    c_up = sprite_load("rom:/core/CUp.sprite");
-    c_down = sprite_load("rom:/core/CDown.sprite");
-    c_left = sprite_load("rom:/core/CLeft.sprite");
-    c_right = sprite_load("rom:/core/CRight.sprite");
-    
+    for (size_t i = 0; i < MAXPLAYERS; i++)
+    {
+        player_init(&players[i]);
+        players[i].plynum = PlyNum(i);
+    }
 }
 
 /*==============================
@@ -87,7 +110,38 @@ extern "C" void minigame_fixedloop(float deltatime)
 
 }
 
-float elapsed;
+float elapsed = -3;
+
+void player_loop(player_data *player, float deltaTime, joypad_port_t port, bool is_human)
+{
+    if (is_human) {
+        joypad_buttons_t btn = joypad_get_buttons_pressed(port);
+        
+        if (btn.start) minigame_end();
+    }
+}
+
+void player_draw(player_data *player, joypad_port_t port)
+{
+    int y = 140;
+    if (player->plynum > 1) {
+        y = 180;
+    }
+    
+    joypad_buttons_t held = joypad_get_buttons_held(port);
+    rdpq_text_printf(NULL, FONT_BUILTIN_DEBUG_MONO, 10 + (100 * (player->plynum % 2)), y, "Player %d", port + 1);
+
+    rdpq_set_mode_copy(true);
+    
+    for (size_t i = 0; i < tracks.size(); i++) {
+        if (tracks[i].button & held.raw) {
+            rdpq_sprite_blit(tracks[i].sprite, 10 + (100 * player->plynum % 2) + (i * 20), y + 10, NULL);
+        }
+    }
+}
+
+
+
 /*==============================
     minigame_loop
     Code that is called every loop.
@@ -97,28 +151,33 @@ extern "C" void minigame_loop(float deltatime)
 {
     rdpq_attach(display_get(), NULL);
     rdpq_clear(color_from_packed32(GAME_BACKGROUND));
-    rdpq_set_mode_copy(true);
-
-    if ((int)freebird.tracks[0].size() > cu_idx && elapsed + 3 >= freebird.tracks[0][cu_idx].time + 3) {
-        current_cu.push_back(freebird.tracks[0][cu_idx]);
-        cu_idx++;
-    }
-    if ((int)freebird.tracks[1].size() > cd_idx && elapsed + 3 >= freebird.tracks[1][cd_idx].time + 3) {
-        current_cd.push_back(freebird.tracks[1][cd_idx]);
-        cd_idx++;
-    }
     
-    for (Note c : current_cu) {
-        rdpq_sprite_blit(c_up, 100, (elapsed - c.time) * 20, NULL);
+    uint32_t playercount = core_get_playercount();
+    for (size_t i = 0; i < MAXPLAYERS; i++)
+    {
+        player_loop(&players[i], deltatime, core_get_playercontroller(PlyNum(i)), i < playercount);
     }
-     for (Note c : current_cd) {
-        rdpq_sprite_blit(c_down, 120, (elapsed - c.time) * 20, NULL);
+
+    tracker->tick(deltatime);
+
+    rdpq_set_mode_fill(RGBA32(0xFF, 0x00, 0x00, 0));
+	rdpq_fill_rectangle(100, 100, 200, 110);
+
+    rdpq_set_mode_copy(true);
+    int t = 0;
+    for(const deque<Note> &track: tracker->current_notes) {
+        for (Note c : track) {
+            rdpq_sprite_blit(tracks[t].sprite, 100 + (t * 20), 100 + (elapsed - c.time) * 20, NULL);
+        }
+        t++;
+    }
+
+    for (size_t i = 0; i < MAXPLAYERS; i++)
+    {
+        player_draw(&players[i], core_get_playercontroller(PlyNum(i)));
     }
 
     elapsed += deltatime;
-
-
-
     rdpq_text_printf(NULL, FONT_BUILTIN_DEBUG_MONO, 10, 10, "Elapsed %f", elapsed);
     rdpq_detach_show();
 }

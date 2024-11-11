@@ -2,13 +2,20 @@
 #include <string>
 #include <queue>
 #include "song.h"
+#include <stdio.h>
+#include <libdragon.h>
 
 using namespace std;
 
 SongTracker::SongTracker(Song song) {
+    elapsed = -3;
     tracks = song.tracks;
-    track_idx.reserve(tracks.size());
+    track_idx = std::vector<int>(tracks.size(), 0);
+    track_jdx = std::vector<int>(tracks.size(), 0);
     current_notes.reserve(tracks.size());
+    for (int i =0; i < (int)tracks.size(); i++) {
+        current_notes.push_back(std::deque<Note>());
+    }
 }
 
 void SongTracker::reset() {
@@ -17,20 +24,16 @@ void SongTracker::reset() {
 
 void SongTracker::tick(float delta) {
     elapsed += delta;
+    
     for (int n=0; n < (int)tracks.size(); n++) {
 
-        if ((int)tracks[n].size() > track_idx[n] && elapsed + 3 >= tracks[n][track_idx[n]].time) {
+        if ((int)tracks[n].size() > track_idx[n] && elapsed + 5 >= tracks[n][track_idx[n]].time) {
             current_notes[n].push_back(tracks[n][track_idx[n]]);
-        }
-
-
-        if (tracks[n][track_idx[n]].time + .1 > elapsed) {
             track_idx[n]++;
         }
 
-        // Check if notes in future in current view
-        if ((int)tracks[n].size() > track_jdx[n] && elapsed + 3 >= tracks[n][track_jdx[n] + 1].time) {
-            track_jdx[n]++;
+        if (current_notes[n].size() > 0 && elapsed > current_notes[n].front().time + .5) {
+            current_notes[n].pop_front();
         }
     }
 }
