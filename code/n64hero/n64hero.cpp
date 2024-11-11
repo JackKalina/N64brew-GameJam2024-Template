@@ -2,6 +2,7 @@
 #include <vector>
 #include <queue>
 #include <string>
+#include <cmath>
 #include "../../core.h"
 #include "../../minigame.h"
 #include "song.h"
@@ -11,15 +12,7 @@ using namespace std;
 #define FONT_TEXT           1
 #define GAME_BACKGROUND     0x000000FF
 
-extern const MinigameDef minigame_def = {
-    .gamename = "n64hero",
-    .developername = "Team Kinnock",
-    .description = "This is an example game.",
-    .instructions = "Press A to win."
-};
-
-rdpq_font_t *font;
-
+// Songs
 const Song freebird = {
     "Freebird",
     {
@@ -28,7 +21,18 @@ const Song freebird = {
             {2, 0},
             {4, 0},
             {6, 1000},
-            {9, 1000}
+            {9, 1000},
+            {10, 0},
+            {11, 0},
+            {12, 0},
+            {13, 1000},
+            {14, 1000},
+            {15, 1000},
+            {16, 1000},
+            {17, 1000},
+            {18, 1000},
+            {19, 1000},
+            {20, 1000},
         },
         {
             {1, 0},
@@ -46,29 +50,41 @@ const Song freebird = {
     }
 };
 
+extern const MinigameDef minigame_def = {
+    .gamename = "n64hero",
+    .developername = "Team Kinnock",
+    .description = "This is an example game.",
+    .instructions = "Press A to win."
+};
+
+rdpq_font_t *font;
+
 typedef struct
 {
     PlyNum plynum;
+
+    // Gameplay state tracking
+    vector<Note> last_note;
+    vector<float> last_note_time;
+    int score;
+    int streak;
 } player_data;
 player_data players[MAXPLAYERS];
 
 typedef struct {
+    int n;
     sprite_t* sprite;
     uint16_t button;
-} track_data;
+} TrackConfig;
 
-sprite_t* c_up;
-sprite_t* c_down;
-sprite_t* c_left;
-sprite_t* c_right;
-
-std::vector <track_data> tracks;
+std::vector <TrackConfig> tracks;
 
 SongTracker* tracker;
 
 void player_init(player_data *player)
 {
-
+    player->last_note = vector<Note>(tracks.size());
+    player->last_note_time = vector<float>(tracks.size());
 }
 
 /*==============================
@@ -79,10 +95,10 @@ extern "C" void minigame_init()
 {
     // Configure each track 8,4,2,1 correspond to bit values in joypad_buttons_t type
     tracks = { 
-        { sprite_load("rom:/core/CUp.sprite"), 8 }, 
-        { sprite_load("rom:/core/CDown.sprite"), 4}, 
-        { sprite_load("rom:/core/CLeft.sprite"), 2}, 
-        { sprite_load("rom:/core/CRight.sprite"), 1} 
+        { 0, sprite_load("rom:/core/CUp.sprite"), 8 }, 
+        { 1, sprite_load("rom:/core/CDown.sprite"), 4}, 
+        { 2, sprite_load("rom:/core/CLeft.sprite"), 2}, 
+        { 3, sprite_load("rom:/core/CRight.sprite"), 1} 
     };
 
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
@@ -118,6 +134,33 @@ void player_loop(player_data *player, float deltaTime, joypad_port_t port, bool 
         joypad_buttons_t btn = joypad_get_buttons_pressed(port);
         
         if (btn.start) minigame_end();
+
+        // Check if any track buttons were pressed
+        for(const TrackConfig cfg: tracks) {
+            if (cfg.button & btn.raw) {
+                deque<Note> notes = tracker->current_notes[cfg.n];
+                
+                // If no notes in current timeline view there is a mishit
+                if (notes.size() == 0) {
+                    // Miss
+                    debugf("Miss track %d\n", cfg.n);
+                    player->streak = 0;
+                } else {
+                    Note candidate = notes.front();
+                    if (fabs(candidate.time - tracker->elapsed) < .25) {
+                        // Hit
+                        player->streak++;
+                        player->last_note[cfg.n] = candidate;
+                        player->score += min(4, (player->streak / 10) + 1);
+                        debugf("Hit track %d\n", cfg.n);
+                    } else {
+                        // Miss
+                        player->streak = 0;
+                        debugf("Miss track %d\n", cfg.n);
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -129,7 +172,7 @@ void player_draw(player_data *player, joypad_port_t port)
     }
     
     joypad_buttons_t held = joypad_get_buttons_held(port);
-    rdpq_text_printf(NULL, FONT_BUILTIN_DEBUG_MONO, 10 + (100 * (player->plynum % 2)), y, "Player %d", port + 1);
+    rdpq_text_printf(NULL, FONT_BUILTIN_DEBUG_MONO, 10 + (100 * (player->plynum % 2)), y, "Player %d : %d", port + 1, player->score);
 
     rdpq_set_mode_copy(true);
     

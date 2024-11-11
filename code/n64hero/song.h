@@ -6,8 +6,8 @@ using namespace std;
 
 typedef struct
 {
-    int time;
-    int duration;
+    float time;
+    float duration;
 } Note;
 
 typedef struct {
@@ -17,11 +17,11 @@ typedef struct {
 
 class SongTracker {
     private:
-        float elapsed;
         std::vector<int> track_idx;
         std::vector<int> track_jdx;
         std::vector<vector<Note>> tracks;
     public:
+        float elapsed;
         std::vector<deque<Note>> current_notes;
 
         void reset();
