@@ -3,8 +3,17 @@
 #include <queue>
 #include <string>
 #include <cmath>
+
+#include <t3d/t3d.h>
+#include <t3d/t3dmath.h>
+#include <t3d/t3dmodel.h>
+#include <t3d/t3dskeleton.h>
+#include <t3d/t3danim.h>
+#include <t3d/t3ddebug.h>
+
 #include "../../core.h"
 #include "../../minigame.h"
+
 #include "song.h"
 
 using namespace std;
@@ -59,6 +68,13 @@ extern const MinigameDef minigame_def = {
 
 rdpq_font_t *font;
 
+T3DModel *model;
+surface_t *depthBuffer;
+T3DViewport viewport;
+T3DVec3 camPos;
+T3DVec3 camTarget;
+T3DVec3 lightDirVec;
+
 typedef struct
 {
     PlyNum plynum;
@@ -68,6 +84,25 @@ typedef struct
     vector<float> last_note_time;
     int score;
     int streak;
+
+    T3DVec3 moveDir;
+    T3DVec3 playerPos;
+
+    // Model data
+    T3DMat4FP* modelMatFP;
+    rspq_block_t *dplPlayer;
+
+    // Animations
+    T3DAnim animIdle;
+    T3DAnim animRun;
+    T3DAnim animDance;
+    vector<T3DAnim> animDances;
+    T3DSkeleton skelBlend;
+    T3DSkeleton skel;
+
+    float animBlend;
+    bool isDancing;
+
 } player_data;
 player_data players[MAXPLAYERS];
 
@@ -80,11 +115,52 @@ typedef struct {
 std::vector <TrackConfig> tracks;
 
 SongTracker* tracker;
+float elapsed = -3;
 
-void player_init(player_data *player)
+void player_init(player_data *player, color_t color, T3DVec3 position)
 {
     player->last_note = vector<Note>(tracks.size());
     player->last_note_time = vector<float>(tracks.size());
+
+    player->modelMatFP = new T3DMat4FP;
+
+    player->moveDir = (T3DVec3){{0,0,0}};
+    player->playerPos = position;
+
+     // First instantiate skeletons, they will be used to draw models in a specific pose
+    // And serve as the target for animations to modify
+    player->skel = t3d_skeleton_create(model);
+    player->skelBlend = t3d_skeleton_clone(&player->skel, false); // optimized for blending, has no matrices
+
+
+    player->animIdle = t3d_anim_create(model, "Idle");
+    t3d_anim_attach(&player->animIdle, &player->skel); // tells the animation which skeleton to modify
+    
+     player->animRun = t3d_anim_create(model, "Run");
+    t3d_anim_attach(&player->animRun, &player->skelBlend); // tells the animation which skeleton to modify
+    
+
+    // Load animations for each track input
+    for (size_t i = 0; i < tracks.size(); i++) {
+        const string anim = "dance_" + std::to_string(i);
+        player->animDances.push_back(t3d_anim_create(model, anim.c_str()));
+        t3d_anim_set_looping(&player->animDances[i], false); // don't loop this animation
+        t3d_anim_set_playing(&player->animDances[i], false); // start in a paused state
+        t3d_anim_attach(&player->animDances[i], &player->skelBlend);
+    }
+
+    rspq_block_begin();
+        t3d_matrix_push(player->modelMatFP);
+        rdpq_set_prim_color(color);
+        t3d_model_draw_skinned(model, &player->skel); // as in the last example, draw skinned with the main skeleton
+        
+        // rdpq_set_prim_color(RGBA32(0, 0, 0, 120));
+        // t3d_model_draw(modelShadow);
+        t3d_matrix_pop(1);
+    player->dplPlayer = rspq_block_end();
+    
+    player->animBlend = 0.0f;
+    player->animBlend = 1.0f;
 }
 
 /*==============================
@@ -101,15 +177,46 @@ extern "C" void minigame_init()
         { 3, sprite_load("rom:/core/CRight.sprite"), 1} 
     };
 
-    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
-    font = rdpq_font_load_builtin(FONT_BUILTIN_DEBUG_VAR);
-    rdpq_text_register_font(FONT_TEXT, font);
+    // Player colors
+    const color_t colors[] = {
+        PLAYERCOLOR_1,
+        PLAYERCOLOR_2,
+        PLAYERCOLOR_3,
+        PLAYERCOLOR_4,
+    };
+
+    T3DVec3 start_positions[] = {
+        (T3DVec3){{-100,0.15f,0}},
+        (T3DVec3){{-100,0.15f,-100}},
+        (T3DVec3){{100,0.15f,0}},
+        (T3DVec3){{100,0.15f,-100}},
+    };
+
+    model = t3d_model_load("rom:/n64hero/player.t3dm");
 
     tracker = new SongTracker(freebird);
 
+   
+
+    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE_ANTIALIAS);
+    depthBuffer = display_get_zbuf();
+
+    t3d_init((T3DInitParams){});
+
+    font = rdpq_font_load_builtin(FONT_BUILTIN_DEBUG_VAR);
+    rdpq_text_register_font(FONT_TEXT, font);
+
+    viewport = t3d_viewport_create();
+
+    camPos = (T3DVec3){{0, 100.0f, 100.0f}};
+    camTarget = (T3DVec3){{0, 0, 40}};
+
+    lightDirVec = (T3DVec3){{1.0f, 1.0f, 1.0f}};
+    t3d_vec3_norm(&lightDirVec);
+
     for (size_t i = 0; i < MAXPLAYERS; i++)
     {
-        player_init(&players[i]);
+        player_init(&players[i], colors[i], start_positions[i]);
         players[i].plynum = PlyNum(i);
     }
 }
@@ -123,10 +230,10 @@ extern "C" void minigame_init()
 ==============================*/
 extern "C" void minigame_fixedloop(float deltatime)
 {
-
+    
 }
 
-float elapsed = -3;
+
 
 void player_loop(player_data *player, float deltaTime, joypad_port_t port, bool is_human)
 {
@@ -159,9 +266,35 @@ void player_loop(player_data *player, float deltaTime, joypad_port_t port, bool 
                         debugf("Miss track %d\n", cfg.n);
                     }
                 }
+
+                if (!player->animDance.isPlaying) {
+                    player->animDance = player->animDances[cfg.n];
+                    t3d_anim_set_playing(&player->animDance, true);
+                    t3d_anim_set_time(&player->animDance, 0.0f);
+                    player->isDancing = true;
+                }
             }
         }
     }
+
+    t3d_anim_update(&player->animIdle, deltaTime);
+    t3d_anim_set_speed(&player->animRun, player->animBlend + 0.15f);
+    t3d_anim_update(&player->animRun, deltaTime);
+    if (player->isDancing) {
+        t3d_anim_update(&player->animDance, deltaTime);
+        if(!player->animDance.isPlaying)player->isDancing = false;
+    }
+
+    t3d_skeleton_blend(&player->skel, &player->skel, &player->skelBlend, player->animBlend);
+
+    t3d_skeleton_update(&player->skel);
+
+    // Update player matrix
+    t3d_mat4fp_from_srt_euler(player->modelMatFP,
+        (float[3]){0.2f, 0.2f, 0.2f},
+        (float[3]){0.0f, 0, 0},
+        player->playerPos.v
+    );
 }
 
 void player_draw(player_data *player, joypad_port_t port)
@@ -181,6 +314,11 @@ void player_draw(player_data *player, joypad_port_t port)
             rdpq_sprite_blit(tracks[i].sprite, 10 + (100 * player->plynum % 2) + (i * 20), y + 10, NULL);
         }
     }
+
+    rdpq_set_mode_standard();
+
+    
+    rspq_block_run(player->dplPlayer);
 }
 
 
@@ -192,8 +330,7 @@ void player_draw(player_data *player, joypad_port_t port)
 ==============================*/
 extern "C" void minigame_loop(float deltatime)
 {
-    rdpq_attach(display_get(), NULL);
-    rdpq_clear(color_from_packed32(GAME_BACKGROUND));
+    tracker->tick(deltatime);
     
     uint32_t playercount = core_get_playercount();
     for (size_t i = 0; i < MAXPLAYERS; i++)
@@ -201,7 +338,25 @@ extern "C" void minigame_loop(float deltatime)
         player_loop(&players[i], deltatime, core_get_playercontroller(PlyNum(i)), i < playercount);
     }
 
-    tracker->tick(deltatime);
+    uint8_t colorAmbient[4] = {0xAA, 0xAA, 0xAA, 0xFF};
+    uint8_t colorDir[4]     = {0xFF, 0xAA, 0xAA, 0xFF};
+
+    t3d_viewport_set_projection(&viewport, T3D_DEG_TO_RAD(90.0f), 20.0f, 160.0f);
+    T3DVec3 up = {0, 1, 0};
+    t3d_viewport_look_at(&viewport, &camPos, &camTarget, &up);
+
+    // ======== Draw (3D) ======== //
+    rdpq_attach(display_get(), depthBuffer);
+    t3d_frame_start();
+    t3d_viewport_attach(&viewport);
+
+    t3d_screen_clear_color(RGBA32(224, 180, 96, 0xFF));
+    t3d_screen_clear_depth();
+
+    t3d_light_set_ambient(colorAmbient);
+    t3d_light_set_directional(0, colorDir, &lightDirVec);
+    t3d_light_set_count(1);
+    
 
     rdpq_set_mode_fill(RGBA32(0xFF, 0x00, 0x00, 0));
 	rdpq_fill_rectangle(100, 100, 200, 110);
