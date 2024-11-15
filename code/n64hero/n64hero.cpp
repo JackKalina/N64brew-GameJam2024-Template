@@ -136,7 +136,7 @@ void player_init(player_data *player, color_t color, T3DVec3 position)
     player->animIdle = t3d_anim_create(model, "Idle");
     t3d_anim_attach(&player->animIdle, &player->skel); // tells the animation which skeleton to modify
     
-     player->animRun = t3d_anim_create(model, "Run");
+    player->animRun = t3d_anim_create(model, "Run");
     t3d_anim_attach(&player->animRun, &player->skelBlend); // tells the animation which skeleton to modify
     
 
@@ -302,23 +302,16 @@ void player_draw(player_data *player, joypad_port_t port)
     int y = 140;
     if (player->plynum > 1) {
         y = 180;
-    }
-    
+    }   
     joypad_buttons_t held = joypad_get_buttons_held(port);
     rdpq_text_printf(NULL, FONT_BUILTIN_DEBUG_MONO, 10 + (100 * (player->plynum % 2)), y, "Player %d : %d", port + 1, player->score);
-
-    rdpq_set_mode_copy(true);
     
+    rdpq_set_mode_copy(true);
     for (size_t i = 0; i < tracks.size(); i++) {
         if (tracks[i].button & held.raw) {
             rdpq_sprite_blit(tracks[i].sprite, 10 + (100 * player->plynum % 2) + (i * 20), y + 10, NULL);
         }
     }
-
-    rdpq_set_mode_standard();
-
-    
-    rspq_block_run(player->dplPlayer);
 }
 
 
@@ -356,7 +349,17 @@ extern "C" void minigame_loop(float deltatime)
     t3d_light_set_ambient(colorAmbient);
     t3d_light_set_directional(0, colorDir, &lightDirVec);
     t3d_light_set_count(1);
-    
+
+    for (size_t i = 0; i < MAXPLAYERS; i++)
+    {
+        player_data *player = &players[i];
+        rspq_block_run(player->dplPlayer);
+    }
+
+    for (size_t i = 0; i < MAXPLAYERS; i++)
+    {
+        player_draw(&players[i], core_get_playercontroller(PlyNum(i)));
+    }
 
     rdpq_set_mode_fill(RGBA32(0xFF, 0x00, 0x00, 0));
 	rdpq_fill_rectangle(100, 100, 200, 110);
@@ -368,11 +371,6 @@ extern "C" void minigame_loop(float deltatime)
             rdpq_sprite_blit(tracks[t].sprite, 100 + (t * 20), 100 + (elapsed - c.time) * 20, NULL);
         }
         t++;
-    }
-
-    for (size_t i = 0; i < MAXPLAYERS; i++)
-    {
-        player_draw(&players[i], core_get_playercontroller(PlyNum(i)));
     }
 
     elapsed += deltatime;
